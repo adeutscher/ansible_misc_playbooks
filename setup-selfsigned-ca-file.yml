@@ -1,0 +1,45 @@
+---
+
+# An example of deploying a self-signed CA certificate to either RedHat or Debian-based Linux systems.
+# NOTE: This is an example without an accompanying certificate to add. The `cert_src` variable will need
+#   to be adjusted before this playbook can be used.
+
+- hosts: "{{ variable_host | default('all') }}"
+  # Example to override 'all' grouping: --extra-vars "variable_host=127.0.0.1"
+
+  environment:
+    ANSIBLE: 1
+
+  vars:
+    cert_src: "./ca-file.crt"
+
+  tasks:
+    - name: set certificate destination (redhat)
+      when: ansible_os_family == "RedHat"
+      set_fact:
+        cert_dest: "/etc/pki/ca-trust/source/anchors/"
+        cert_handler_type: redhat
+
+    - name: set certificate destination (debian)
+      when: ansible_os_family == "Debian"
+      set_fact:
+        cert_dest: "/usr/local/share/ca-certificates/"
+        cert_handler_type: debian
+
+    - name: abort if no variables
+      when: not (cert_dest and cert_handler_type)
+      fail: msg="Unhandled distribution - {{ ansible_os_family }} ({{ ansible_distribution }})"
+
+    - name: TAC certificate
+      become: yes
+      copy: src="{{ cert_src }}" dest="{{ cert_dest }}"
+      notify: reload {{ cert_handler_type }} certificates
+
+  handlers:
+    - name: reload debian certificates
+      become: yes
+      shell: /usr/sbin/update-ca-certificates
+
+    - name: reload redhat certificates
+      become: yes
+      shell: update-ca-trust force-enable

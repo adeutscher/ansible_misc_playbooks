@@ -1,0 +1,41 @@
+---
+
+# This playbook sets NetworkManager's configuration to do two things:
+# * Ignore DNS data from DHCP and keep using localhost for name resolution.
+# * Ignore the MACs for devices hard-coded into this playbook, allowing them to be manually configured.
+#   I usually use this feature for USB NICs on my laptop.
+#     * For good measure, list interfaces present at generation in case any ad-hoc ignoring is required.
+#
+# This approach is still horrendously hard-coded, but it is easier to maintain than my old method of keeping a copy of the configuration file in reserve.
+
+- hosts: all
+
+  vars:
+
+    nm:
+      service: "NetworkManager"
+      template: "templates/NetworkManager.conf.j2"
+      dest: "/etc/NetworkManager/NetworkManager.conf"
+
+    # Hard-coded MAC addresses are not ideal and should be rethought in the future.
+    mac_addresses:
+      - { mac: "aa:bb:cc:dd:ee:ff", comment: "USB Device A" }
+      - { mac: "aa:aa:aa:aa:aa:aa", comment: "USB Device B" }
+
+  tasks:
+
+    - name: apply config
+      become: yes
+      template:
+        src: "{{ nm.template }}"
+        dest: "{{ nm.dest }}"
+      notify: restart NetworkManager
+
+  handlers:
+
+    - name: restart NetworkManager
+      become: yes
+      service:
+        name: NetworkManager
+        enabled: yes
+        state: restarted
